@@ -7,20 +7,14 @@ if not os.path.exists("output"):
 
 # Data treatment
 import pandas as pd
-import numpy as np
 from sklearn.preprocessing import LabelEncoder
 
-# Visual
-import pylab
+# Data Visualization
 import matplotlib.pyplot as plt
-# %matplotlib inline
+import seaborn as sns
 
 # Machine Learning 
 from sklearn.linear_model import LogisticRegression
-
-# Data Visualization
-import seaborn as sns
-import scipy.stats as stats
 
 if __name__ == "__main__":
 
@@ -31,7 +25,7 @@ if __name__ == "__main__":
     TestSet = pd.read_csv("./data/test.csv")
 
     # Exploring the data
-    # TrainSet.info()    
+    # print(TrainSet.info())
 
     # Delete irrelevant columns
     TrainSet =  TrainSet.drop('Name', axis=1)
@@ -49,7 +43,7 @@ if __name__ == "__main__":
     TestSet.Embarked = le.fit_transform(TestSet.Embarked)
     TestSet.Ticket = le.fit_transform(TestSet.Ticket)
     TestSet.Cabin = le.fit_transform(TestSet.Cabin)
-    # DEBUG
+    # DEBUG - see how objects were relabled
     # model_mapping = {index : label for index, label in enumerate(le.classes_)}
     # print(model_mapping)
 
@@ -65,7 +59,7 @@ if __name__ == "__main__":
     # plt.show()
 
     # Descriptive statistics
-    print(TrainSet.describe())
+    # print(TrainSet.describe())
 
     # Linear correlation with the data set
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
@@ -95,15 +89,13 @@ if __name__ == "__main__":
     Test = TestSet[['PassengerId','Pclass','Age','Sex','Ticket','Fare','Cabin','Embarked','SibSp']]
 
     # Filling the missing values with the mean
-    print(Train.isna().sum())
-    print(Test.isna().sum())
+    # print(Train.isna().sum())
+    # print(Test.isna().sum())
     mean_age_train = Train['Age'].mean()
     mean_age_test = Test['Age'].mean()
-    Train["Age"].fillna(mean_age_train, inplace=True)
-    # Train.fillna(mean_age_train, inplace=True)
+    Train.fillna(mean_age_train, inplace=True)
     Test.fillna(mean_age_test, inplace=True)
-    print(Train.isna().sum())
-    print(Test.isna().sum())
+    # Test["Age"].fillna(mean_age_test, inplace=True)
 
     # Split the data
     X_train = Train.drop('Survived', axis=1)
