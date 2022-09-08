@@ -20,11 +20,11 @@ if __name__ == "__main__":
 
     print("Starting")
 
-    # Data Sets
+    # Load the data sets
     TrainSet = pd.read_csv("./data/train.csv")
     TestSet = pd.read_csv("./data/test.csv")
 
-    # Exploring the data
+    # Explore the data
     # print(TrainSet.info())
 
     # Delete irrelevant columns
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     Train = TrainSet[['PassengerId','Survived','Pclass','Age','Sex','Ticket','Fare','Cabin','Embarked','SibSp']]
     Test = TestSet[['PassengerId','Pclass','Age','Sex','Ticket','Fare','Cabin','Embarked','SibSp']]
 
-    # Filling the missing values with the mean
+    # Fill in the missing values with the mean
     # print(Train.isna().sum())
     # print(Test.isna().sum())
     mean_age_train = Train['Age'].mean()
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     X_train = Train.drop('Survived', axis=1)
     y_train = Train[['Survived']]
 
-    # Logistic
+    # Logistic Regression (Classifier)
     clf = LogisticRegression()
     clf.fit(X_train, y_train)
 
