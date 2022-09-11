@@ -1,10 +1,38 @@
+// HTTP
 const express = require("express");
-const { createCanvas } = require("canvas");
-const socket = require("socket.io");
 const http = require('http');
+const app = express();
+const server = http.createServer(app);
+app.get("/", (_, res) => {
+    res.header("Content-Type", "text/html");
+    res.send(ClientHTML);
+});
+app.get("/index.css", (_, res) => {
+    res.header("Content-Type", "text/css");
+    res.send(ClientCSS);
+});
+app.get("/index.js", (_, res) => {
+    res.header("Content-Type", "text/javascript");
+    res.send(ClientJS);
+});
+server.listen(80, () => console.log("ready"));
+
+// SOCKET
+const socket = require("socket.io");
+const { Server } = socket;
+const io = new Server(server);
+
+// VIDEO
+const { createCanvas } = require("canvas");
+const SQUARE_SIZE = 10;
+const WIDTH = 300;
+const HEIGHT = 150;
+const canvas = createCanvas(WIDTH, HEIGHT);
+const context = canvas.getContext("2d");
+
+// AUDIO
 const load = require("audio-loader");
 const path = require("path");
-
 const beeper = new Promise((resolve, reject) => {
     load(path.join(__dirname, "beeper.wav"), (err, data) => {
         if(err) reject(err);
@@ -12,45 +40,33 @@ const beeper = new Promise((resolve, reject) => {
     })
 });
 
-const SQUARE_SIZE = 10;
-
-const canvas = createCanvas(300, 150);
-const context = canvas.getContext("2d");
-
-const app = express();
-const server = http.createServer(app);
-const { Server } = socket;
-const io = new Server(server);
-
-app.get("/", (_, res) => {
-    res.header("Content-Type", "text/html");
-    res.send(`<!doctype html>
+const ClientHTML = `
+<!doctype html>
 <html>
     <head>
         <link href="./index.css" rel="stylesheet" />
     </head>
     <body>
-        <canvas></canvas>
+        <canvas width="${WIDTH}" height="${HEIGHT}"></canvas>
         <script defer src="/socket.io/socket.io.js"></script>
         <script defer src="./index.js"></script>
     </body>
-</html>`);
-});
-app.get("/index.css", (_, res) => {
-    res.header("Content-Type", "text/css");
-    res.send(`canvas {
+</html>
+`;
+
+const ClientCSS = `
+canvas {
     background : black;
 }
-html, body {
-    padding : 0;
+body {
     margin : 0;
-    border : 0;
-}`);
-});
-app.get("/index.js", (_, res) => {
-    res.header("Content-Type", "application/javascript");
-    res.send(`const canvas = document.querySelector("canvas");
+}
+`;
+
+const ClientJS = `
+const canvas = document.querySelector("canvas");
 const context = canvas.getContext("2d");
+
 const socket = io();
 socket.on('video', (event) => {
     const data = new Uint8Array(event.data);
@@ -60,13 +76,6 @@ socket.on('video', (event) => {
     }
     context.putImageData(id, 0, 0);
 });
-
-canvas.onmousemove = (event) => {
-    socket.emit("mousemove", {
-        x : event.pageX,
-        y : event.pageY
-    });
-};
 
 document.body.onclick = () => {
     document.body.onclick = null;
@@ -85,31 +94,75 @@ document.body.onclick = () => {
         source.connect(audioContext.destination);
         source.start();
     });
-};`);
-});
+};
+
+canvas.onmousemove = (event) => {
+    socket.emit("mousemove", {
+        x : event.pageX,
+        y : event.pageY
+    });
+};
+`;
 
 const random = (min, max) => {
     return Math.floor(Math.random() * (max - min)) + min;
 };
+
+const bounce = (socket) => {
+    beeper.then(data => {
+        socket.emit("audio", {
+            id : "bounce",
+            length : data.length,
+            numberOfChannels : data.numberOfChannels,
+            sampleRate : data.sampleRate,
+            duration : data.duration,
+            channelData : data._channelData
+        })
+    })
+};
+
+const draw = (canvas, square, mouse, diff) => {
+    // clear
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    // rect
+    context.fillStyle = square.color;
+    context.fillRect(square.location.x, square.location.y, square.size.width, square.size.height);
+    // fps
+    context.textAlign = "right";
+    context.textBaseline = "bottom";
+    context.fillStyle = "red";
+    context.fillText(Math.floor(1 / diff), canvas.width - 10, canvas.height - 10)
+    // mouse
+    context.fillStyle = "green";
+    context.fillRect(mouse.x - 5, mouse.y - 5, 10, 10);
+}
+
+const update = (socket, square, diff) => {
+    square.location.x = square.location.x + square.velocity.x * diff;
+    square.location.y = square.location.y + square.velocity.y * diff;
+    if(square.location.x <= 0 && square.velocity.x < 0) {
+        square.velocity.x = -square.velocity.x;
+        bounce(socket);
+    }
+    if(square.location.y <= 0 && square.velocity.y < 0) {
+        square.velocity.y = -square.velocity.y;
+        bounce(socket);
+    }
+    if(square.location.x + square.size.width >= canvas.width  && square.velocity.x > 0) {
+        square.velocity.x = -square.velocity.x;
+        bounce(socket);
+    }
+    if(square.location.y + square.size.height >= canvas.height  && square.velocity.y > 0) {
+        square.velocity.y = -square.velocity.y;
+        bounce(socket);
+    } 
+}
 
 io.on('connection', (socket) => {
     const mouse = {
         x : canvas.width / 2,
         y : canvas.height / 2
     };
-    const bounce = () => {
-        beeper.then(data => {
-            socket.emit("audio", {
-                id : "bounce",
-                length : data.length,
-                numberOfChannels : data.numberOfChannels,
-                sampleRate : data.sampleRate,
-                duration : data.duration,
-                data : data._data,
-                channelData : data._channelData
-            })
-        })
-    }
     const theta = random(0, 360) / 180 * Math.PI;
     const square = {
         size : {
@@ -131,19 +184,7 @@ io.on('connection', (socket) => {
         const now = Date.now();
         const diff = (now - lastUpdate) / 1000;
         lastUpdate = now;
-        // DRAW
-        // rect
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.fillStyle = square.color;
-        context.fillRect(square.location.x, square.location.y, square.size.width, square.size.height);
-        // fps
-        context.textAlign = "right";
-        context.textBaseline = "bottom";
-        context.fillStyle = "red";
-        context.fillText(Math.floor(1 / diff), canvas.width - 10, canvas.height - 10)
-        // mouse
-        context.fillStyle = "green";
-        context.fillRect(mouse.x - 5, mouse.y - 5, 10, 10);
+        draw(canvas, square, mouse, diff);
         const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
         socket.emit("video", {
             x : 0,
@@ -152,25 +193,7 @@ io.on('connection', (socket) => {
             height : canvas.height,
             data
         });        
-        // UPDATE
-        square.location.x = square.location.x + square.velocity.x * diff;
-        square.location.y = square.location.y + square.velocity.y * diff;
-        if(square.location.x <= 0 && square.velocity.x < 0) {
-            square.velocity.x = -square.velocity.x;
-            bounce();
-        }
-        if(square.location.y <= 0 && square.velocity.y < 0) {
-            square.velocity.y = -square.velocity.y;
-            bounce();
-        }
-        if(square.location.x + square.size.width >= canvas.width  && square.velocity.x > 0) {
-            square.velocity.x = -square.velocity.x;
-            bounce();
-        }
-        if(square.location.y + square.size.height >= canvas.height  && square.velocity.y > 0) {
-            square.velocity.y = -square.velocity.y;
-            bounce();
-        } 
+        update(socket, square, diff);
     }, 1000 / 60);
     socket.on("mousemove", (event) => {
         mouse.x = event.x;
@@ -180,5 +203,3 @@ io.on('connection', (socket) => {
         clearInterval(video);
     });
 });
-
-server.listen(80, () => console.log("ready"));
