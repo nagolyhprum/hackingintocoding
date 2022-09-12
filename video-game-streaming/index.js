@@ -92,18 +92,18 @@ document.body.onclick = () => {
     document.body.onclick = null;
     const audioContext = new AudioContext();
     socket.on("audio", event => {
-        const myArrayBuffer = audioContext.createBuffer(event.numberOfChannels, event.length, event.sampleRate);
-        for(let channel = 0; channel < event.numberOfChannels; channel++) {
-            const nowBuffering = myArrayBuffer.getChannelData(channel);
+        const buffer = audioContext.createBuffer(event.numberOfChannels, event.length, event.sampleRate);
+        for(let channel = 0; channel < buffer.numberOfChannels; channel++) {
+            const buffering = buffer.getChannelData(channel);
             // use audio data as 32 bit numbers
             const data = new Int32Array(event.channelData[channel]);
             // copy the server's audio stream to the browser's audio stream
-            for (let i = 0; i < myArrayBuffer.length; i++) {
-                nowBuffering[i] = data[i];
+            for (let i = 0; i < buffer.length; i++) {
+                buffering[i] = data[i];
             }
         }  
         const source = audioContext.createBufferSource();
-        source.buffer = myArrayBuffer;
+        source.buffer = buffer;
         source.connect(audioContext.destination);
         source.start();
     });
